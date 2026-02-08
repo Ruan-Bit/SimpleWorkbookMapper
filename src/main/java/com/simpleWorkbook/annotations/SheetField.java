@@ -7,10 +7,13 @@ import java.lang.annotation.Target;
 
 @Retention(RetentionPolicy.RUNTIME)
 @Target(ElementType.FIELD)
-public @interface SheetField {
+public @interface
+SheetField {
 
     /**
      * sheet name
      */
     String value();
+
+    int rowHeight() default 20;
 }

@@ -22,6 +22,7 @@ public @interface TitleField {
      */
     String[] dictValues() default {};
 
+    String dictSheetName() default "";
 
     /**
      * 列宽
@@ -29,4 +30,7 @@ public @interface TitleField {
     int colWidth() default 15;
 
 
+    boolean listValuesInSingleCell() default false;
+
+    String listValuesInSingleCellSplitter() default ",";
 }

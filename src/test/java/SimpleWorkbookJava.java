@@ -1,15 +1,15 @@
 import com.simpleWorkbook.model.AbsWorkbookJavaObj;
-import com.simpleWorkbook.model.titledList.TitledListSheetPage;
+import com.simpleWorkbook.model.titledList.TitledListAbsSheetPageObj;
 
 public class SimpleWorkbookJava extends AbsWorkbookJavaObj {
 
-    private TitledListSheetPage<SimpleSheet> sheetPage;
+    private TitledListAbsSheetPageObj<SimpleSheet> sheetPage;
 
-    public TitledListSheetPage<SimpleSheet> getSheetPage() {
+    public TitledListAbsSheetPageObj<SimpleSheet> getSheetPage() {
         return sheetPage;
     }
 
-    public void setSheetPage(TitledListSheetPage<SimpleSheet> sheetPage) {
+    public void setSheetPage(TitledListAbsSheetPageObj<SimpleSheet> sheetPage) {
         this.sheetPage = sheetPage;
     }
 }

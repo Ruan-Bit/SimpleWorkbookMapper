@@ -1,15 +1,19 @@
 package com.simpleWorkbook.handler;
 
 import com.simpleWorkbook.model.AbsSheetJavaObj;
-import com.simpleWorkbook.model.titledList.TitledListSheetPage;
+import com.simpleWorkbook.model.AbsSheetPageObj;
+import com.simpleWorkbook.model.titledList.TitledListAbsSheetPageObj;
 
 public class SheetPageHandlerFactory {
 
-    public static <T extends AbsSheetJavaObj> SheetPageHandler createSheetPageHandler(Class<T> tClass){
+    public static SheetPageHandler createSheetPageHandler(Class<?> sheetPageJavaType, Class<?> sheetJavaObjClass){
 
-        if (TitledListSheetPage.class.isAssignableFrom(tClass)){
-            return new TitledListSheetPageHandler();
+        assert AbsSheetPageObj.class.isAssignableFrom(sheetPageJavaType);
+        assert AbsSheetJavaObj.class.isAssignableFrom(sheetJavaObjClass);
+
+        if (TitledListAbsSheetPageObj.class.isAssignableFrom(sheetPageJavaType)){
+            return new TitledListSheetPageHandler(sheetJavaObjClass);
         }
-        return new TitledListSheetPageHandler();
+        return new TitledListSheetPageHandler(sheetJavaObjClass);
     }
 }

@@ -54,8 +54,38 @@ public class CommonUtils {
         assert actualTypeArguments.length == 1;
         Type actualTypeArgument = actualTypeArguments[0];
 
-        assert actualTypeArgument instanceof Class;
         return (Class<?>) actualTypeArgument;
+    }
+
+    /**
+     * 获取字段中第一个泛型类型
+     */
+    public static Class<?> getFirstGenericTypeOfField(Field field){
+        Type genericType = field.getGenericType();
+
+        assert genericType instanceof ParameterizedType;
+        ParameterizedType parameterizedType = (ParameterizedType) genericType;
+        Type[] actualTypeArguments = parameterizedType.getActualTypeArguments();
+
+        return (Class<?>) actualTypeArguments[0];
+    }
+
+    public static Object getFieldValue(Object obj, Field field) {
+        field.setAccessible(true);
+        try {
+            return field.get(obj);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
+    public static void setFieldValue(Object obj, Field field, Object value) {
+        field.setAccessible(true);
+        try {
+            field.set(obj, value);
+        } catch (IllegalAccessException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public static File getFileWithCheck(String filePath) throws FileNotFoundException, FileTypeNotSupportException {

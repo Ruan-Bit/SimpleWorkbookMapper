@@ -1,27 +1,27 @@
 package com.simpleWorkbook.model.titledList;
 
 import com.simpleWorkbook.model.AbsSheetJavaObj;
-import com.simpleWorkbook.model.SheetPage;
+import com.simpleWorkbook.model.AbsSheetPageObj;
 
 import java.util.List;
 
 /**
  * 前n行为表头，第n行后为数据的工作簿形式
- * @param <T>
+ * @param <SheetObj>
  */
-public class TitledListSheetPage<T extends AbsSheetJavaObj> extends SheetPage<List<T>> {
+public class TitledListAbsSheetPageObj<SheetObj extends AbsSheetJavaObj> extends AbsSheetPageObj<List<SheetObj>> {
 
-    private List<T> list;
+    private List<SheetObj> list;
 
     private int titleRowCount;
 
     @Override
-    public List<T> getData() {
+    public List<SheetObj> getData() {
         return this.list;
     }
 
     @Override
-    public void setData(List<T> list) {
+    public void setData(List<SheetObj> list) {
         this.list = list;
     }
 
