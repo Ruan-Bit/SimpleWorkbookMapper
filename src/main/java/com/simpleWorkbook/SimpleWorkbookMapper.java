@@ -35,6 +35,7 @@ public class SimpleWorkbookMapper {
         Objects.requireNonNull(workbook);
         List<Field> allFieldsIncludeSupper = CommonUtils.getAllFieldsIncludeSupper(tClass);
         try {
+            int sheetIndex = 0;
             for (Field field : allFieldsIncludeSupper) {
                 SheetField sheetField = field.getDeclaredAnnotation(SheetField.class);
                 if (sheetField == null){
@@ -45,7 +46,7 @@ public class SimpleWorkbookMapper {
 
                 Class<?> firstGenericTypeOfField = CommonUtils.getFirstGenericTypeOfField(field);
                 SheetPageHandler sheetPageHandler = SheetPageHandlerFactory.createSheetPageHandler(pageType, firstGenericTypeOfField);
-                Sheet sheet = workbook.createSheet(sheetField.value());
+                Sheet sheet = workbook.getSheetAt(sheetIndex++);
                 T workbookObject = tClass.newInstance();
                 sheetPageHandler.readSheetPage(sheet, workbookObject, field);
                 return workbookObject;
@@ -56,10 +57,11 @@ public class SimpleWorkbookMapper {
         return null;
     }
 
-
+    //注意关闭workbook资源
     public static <T extends AbsWorkbookJavaObj> Workbook writeWorkbook(T t) {
         List<Field> allFieldsIncludeSupper = CommonUtils.getAllFieldsIncludeSupper(t.getClass());
-        try(Workbook workbook = new XSSFWorkbook()) {
+        try {
+            Workbook workbook = new XSSFWorkbook();
             for (Field field : allFieldsIncludeSupper) {
                 SheetField sheetField = field.getDeclaredAnnotation(SheetField.class);
                 if (sheetField == null){
@@ -75,7 +77,7 @@ public class SimpleWorkbookMapper {
 
                 return workbook;
             }
-        } catch (IOException | IllegalAccessException e) {
+        } catch (IllegalAccessException e) {
             throw new RuntimeException(e);
         }
         return null;
