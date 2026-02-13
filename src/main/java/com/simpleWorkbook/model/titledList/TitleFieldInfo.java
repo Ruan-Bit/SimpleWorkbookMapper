@@ -22,8 +22,11 @@ public class TitleFieldInfo {
     //字段开始列
     final private int startCol;
 
+    //标题字段所在层数
+    final private int layer;
 
-    public TitleFieldInfo(Field field, List<TitleFieldInfo> subTitleFieldInfos, Class<?> subFieldType, int startCol) {
+
+    public TitleFieldInfo(Field field, List<TitleFieldInfo> subTitleFieldInfos, Class<?> subFieldType, int startCol, int layer) {
         this.field = field;
         this.field.setAccessible(true);
         this.subFieldType = subFieldType;
@@ -32,6 +35,7 @@ public class TitleFieldInfo {
             this.subTitleFieldInfos.forEach(f -> f.getField().setAccessible(true));
         }
         this.startCol = startCol;
+        this.layer = layer;
     }
 
     public Field getField() {
@@ -48,5 +52,9 @@ public class TitleFieldInfo {
 
     public Class<?> getSubFieldType() {
         return subFieldType;
+    }
+
+    public int getLayer() {
+        return layer;
     }
 }

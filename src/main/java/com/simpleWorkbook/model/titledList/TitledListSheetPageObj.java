@@ -9,7 +9,7 @@ import java.util.List;
  * 前n行为表头，第n行后为数据的工作簿形式
  * @param <SheetObj>
  */
-public class TitledListAbsSheetPageObj<SheetObj extends AbsSheetJavaObj> extends AbsSheetPageObj<List<SheetObj>> {
+public class TitledListSheetPageObj<SheetObj extends AbsSheetJavaObj> extends AbsSheetPageObj<List<SheetObj>> {
 
     private List<SheetObj> list;
 

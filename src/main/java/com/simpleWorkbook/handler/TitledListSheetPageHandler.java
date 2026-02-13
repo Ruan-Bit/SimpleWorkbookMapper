@@ -2,17 +2,18 @@ package com.simpleWorkbook.handler;
 
 import com.simpleWorkbook.annotations.TitleField;
 import com.simpleWorkbook.model.AbsSheetJavaObj;
-import com.simpleWorkbook.model.AbsSheetPageObj;
 import com.simpleWorkbook.model.AbsWorkbookJavaObj;
 import com.simpleWorkbook.model.titledList.TitleFieldInfo;
-import com.simpleWorkbook.model.titledList.TitledListAbsSheetPageObj;
+import com.simpleWorkbook.model.titledList.TitledListSheetPageObj;
 import com.simpleWorkbook.utils.CommonUtils;
 import org.apache.commons.collections4.CollectionUtils;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.ss.util.CellRangeAddress;
 import org.apache.poi.ss.util.CellRangeAddressList;
 import org.apache.poi.xssf.usermodel.XSSFDataValidationHelper;
+import org.apache.poi.xssf.usermodel.XSSFFormulaEvaluator;
 import org.apache.poi.xssf.usermodel.XSSFSheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.ParameterizedType;
@@ -20,7 +21,7 @@ import java.lang.reflect.Type;
 import java.util.*;
 import java.util.stream.Collectors;
 
-public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> implements SheetPageHandler<List<SheetObj>, TitledListAbsSheetPageObj<SheetObj>> {
+public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> implements SheetPageHandler<List<SheetObj>, TitledListSheetPageObj<SheetObj>> {
 
     private final Class<SheetObj> sheetObjClass;
 
@@ -29,15 +30,24 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
     private final List<TitleFieldInfo> titleFieldInfos;
 
     TitledListSheetPageHandler(Class<SheetObj> sheetObjClass){
-         this.sheetObjClass = sheetObjClass;
-         this.titleFieldInfos = computeTitleRow(sheetObjClass, 0);
-            int rowCount = 0;
-        for (TitleFieldInfo allTitleFieldInfo : titleFieldInfos) {
-            if (String.class.equals(allTitleFieldInfo.getField().getType())) {
-                rowCount++;
+        this.sheetObjClass = sheetObjClass;
+        this.titleFieldInfos = computeTitleRow(sheetObjClass, 0, 1);
+        List<TitleFieldInfo> allFieldInfos = titleFieldInfosFlat(this.titleFieldInfos);
+        this.titleRowCount = allFieldInfos.stream()
+                .reduce((a, b) -> a.getLayer() > b.getLayer() ? a : b)
+                .map(TitleFieldInfo::getLayer)
+                .orElse(1);
+    }
+
+    private static List<TitleFieldInfo> titleFieldInfosFlat(List<TitleFieldInfo> titleFieldInfos){
+        List<TitleFieldInfo> titleFieldInfosFlat = new ArrayList<>(titleFieldInfos);
+        for (TitleFieldInfo titleFieldInfo : titleFieldInfos) {
+            if (CollectionUtils.isEmpty(titleFieldInfo.getSubTitleFieldInfos())){
+                continue;
             }
+            titleFieldInfosFlat.addAll(titleFieldInfosFlat(titleFieldInfo.getSubTitleFieldInfos()));
         }
-        this.titleRowCount =  rowCount;
+        return titleFieldInfosFlat;
     }
 
 
@@ -48,13 +58,14 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
         List<SheetObj> absSheetJavaObjs = this.readDataOfSheet(excelRowList, titleRowCount, mergedRegions);
 
-        TitledListAbsSheetPageObj<SheetObj> sheetPageObj = new TitledListAbsSheetPageObj<>();
+        TitledListSheetPageObj<SheetObj> sheetPageObj = new TitledListSheetPageObj<>();
         sheetPageObj.setData(absSheetJavaObjs);
+        sheetPageObj.setTitleRowCount(this.titleRowCount);
         sheetPageField.set(workbookObject, sheetPageObj);
     }
 
     @Override
-    public void writeSheetPage(Sheet sheet, TitledListAbsSheetPageObj<SheetObj> sheetPageObj) {
+    public void writeSheetPage(Sheet sheet, TitledListSheetPageObj<SheetObj> sheetPageObj) {
 
         List<SheetObj> dataList = sheetPageObj.getData();
 
@@ -63,8 +74,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         }
 
         // 创建标题行
-        createTitleRow(sheet);
-        List<CellRangeAddress> mergeRegions = createTitleRow2Sheet(sheet, this.titleFieldInfos, this.titleRowCount);
+        List<CellRangeAddress> mergeRegions = createTitleRow2Sheet(sheet, this.titleFieldInfos, 0);
 
         // 添加数据
         if (CollectionUtils.isNotEmpty(dataList)) {
@@ -127,11 +137,27 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         return result;
     }
 
+    //获取cell的数据，统一为string，最低限度返回"",防止list中存在null数据
     private String cellStringValue(Cell cell) {
         if (cell == null) {
             return "";
         }
-        return cell.getStringCellValue();
+        XSSFFormulaEvaluator xssfFormulaEvaluator = new XSSFFormulaEvaluator((XSSFWorkbook) cell.getSheet().getWorkbook());
+        switch (cell.getCellTypeEnum()) {
+            case STRING:
+                return cell.getStringCellValue();
+            case BLANK:
+            case _NONE:
+            case ERROR:
+                return "";
+            case NUMERIC:
+                return String.valueOf(cell.getNumericCellValue());
+            case BOOLEAN:
+                return String.valueOf(cell.getBooleanCellValue());
+            case FORMULA:
+                return cellStringValue(xssfFormulaEvaluator.evaluateInCell(cell));
+        }
+        return "";
     }
 
     /**
@@ -205,11 +231,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         }
         createDataValidationWithSheetName(sheet, hiddenSheetName, firstRow, lastRow, firstCol, lastCol);
     }
-    // 创建标题行
-    public <T extends AbsSheetJavaObj> void createTitleRow(final Sheet sheet) {
-        List<CellRangeAddress> cellRangeAddresses = createTitleRow2Sheet(sheet, titleFieldInfos, 0);
-        cellRangeAddresses.forEach(sheet::addMergedRegion);
-    }
+
 
     private static Row createRowIfNotExist(Sheet sheet, int rowIndex) {
         Row row = sheet.getRow(rowIndex);
@@ -219,7 +241,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         return row;
     }
 
-    private static <T extends AbsSheetJavaObj> List<CellRangeAddress> createTitleRow2Sheet(final Sheet sheet, final List<TitleFieldInfo> fieldList, int titleRowIndex) {
+    private static <T extends AbsSheetJavaObj> List<CellRangeAddress> createTitleRow2Sheet(final Sheet sheet, final List<TitleFieldInfo> fieldList, int starRow) {
         if (CollectionUtils.isEmpty(fieldList)) {
             return Collections.emptyList();
         }
@@ -234,8 +256,14 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
                 .filter(excelTitleField -> Collection.class.isAssignableFrom(excelTitleField.getField().getType()) && CollectionUtils.isNotEmpty(excelTitleField.getSubTitleFieldInfos()))
                 .collect(Collectors.toList());
         for (TitleFieldInfo listField : listFields) {
-            List<CellRangeAddress> cellRangeAddresses1 = createTitleRow2Sheet(sheet, listField.getSubTitleFieldInfos(), titleRowIndex);
+            Row titleRow = createRowIfNotExist(sheet, starRow);
+            createTitleCell2Sheet(titleRow, listField);
+            List<CellRangeAddress> cellRangeAddresses1 = createTitleRow2Sheet(sheet, listField.getSubTitleFieldInfos(), starRow + 1);
             listCellRangeAddresses.addAll(cellRangeAddresses1);
+            int columnCount = columnCount(listField);
+            if (columnCount > 1) {
+                titleCellRangeAddresses.add(new CellRangeAddress(starRow, starRow, listField.getStartCol(), listField.getStartCol() + columnCount -1));
+            }
         }
 
         // AbsSheetJavaObj类型的字段
@@ -243,29 +271,37 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
                 .filter(excelTitleField -> AbsSheetJavaObj.class.isAssignableFrom(excelTitleField.getField().getType()))
                 .collect(Collectors.toList());
         for (TitleFieldInfo titleFieldInfo : titleFieldInfos) {
-            Row titleRow = createRowIfNotExist(sheet, titleRowIndex);
+            Row titleRow = createRowIfNotExist(sheet, starRow);
             createTitleCell2Sheet(titleRow, titleFieldInfo);
-            List<CellRangeAddress> subCellRangeAddresses = createTitleRow2Sheet(sheet, titleFieldInfo.getSubTitleFieldInfos(), titleRowIndex + 1);
+            List<CellRangeAddress> subCellRangeAddresses = createTitleRow2Sheet(sheet, titleFieldInfo.getSubTitleFieldInfos(), starRow + 1);
             titleCellRangeAddresses.addAll(subCellRangeAddresses);
             int columnCount = columnCount(titleFieldInfo);
             if (columnCount > 1) {
-                titleCellRangeAddresses.add(new CellRangeAddress(titleRowIndex, titleRowIndex, titleFieldInfo.getStartCol(), titleFieldInfo.getStartCol() + columnCount -1));
+                titleCellRangeAddresses.add(new CellRangeAddress(starRow, starRow, titleFieldInfo.getStartCol(), titleFieldInfo.getStartCol() + columnCount -1));
             }
         }
 
-        int subRowSize = computeRowPlacedSize(titleCellRangeAddresses, Optional.of(titleCellRangeAddresses).map(lst -> lst.get(0)).map(CellRangeAddress::getFirstColumn).orElse(-1));
-        int listRowSize =  computeRowPlacedSize(listCellRangeAddresses, Optional.of(listCellRangeAddresses).map(lst -> lst.get(0)).map(CellRangeAddress::getFirstColumn).orElse(-1));
+        int subRowSize = computeRowPlacedSize(titleCellRangeAddresses, Optional.of(titleCellRangeAddresses)
+                .filter(CollectionUtils::isNotEmpty)
+                .map(lst -> lst.get(0)).map(CellRangeAddress::getFirstColumn)
+                .orElse(-1)
+        );
+        int listRowSize =  computeRowPlacedSize(listCellRangeAddresses, Optional.of(listCellRangeAddresses)
+                .filter(CollectionUtils::isNotEmpty)
+                .map(lst -> lst.get(0)).map(CellRangeAddress::getFirstColumn)
+                .orElse(-1)
+        );
         boolean hasMergeREgion = subRowSize > 0 || listRowSize > 1;
 
         // 获取String类型的字段
         List<TitleFieldInfo> stringFields = fieldList.stream().filter(titleFieldInfo -> titleFieldInfo.getField().getType().equals(String.class) || CollectionUtils.isEmpty(titleFieldInfo.getSubTitleFieldInfos())).collect(Collectors.toList());
         for (TitleFieldInfo stringField : stringFields) {
-            Row titleRow = createRowIfNotExist(sheet, titleRowIndex);
+            Row titleRow = createRowIfNotExist(sheet, starRow);
             createTitleCell2Sheet(titleRow, stringField);
 
             if (hasMergeREgion){
-                int maxRowIndex = Math.max(titleRowIndex + listRowSize - 1, titleRowIndex + subRowSize);
-                cellRangeAddresses.add(new CellRangeAddress(titleRowIndex, maxRowIndex, stringField.getStartCol(), stringField.getStartCol()));
+                int maxRowIndex = Math.max(starRow + listRowSize - 1, starRow + subRowSize);
+                cellRangeAddresses.add(new CellRangeAddress(starRow, maxRowIndex, stringField.getStartCol(), stringField.getStartCol()));
             }
         }
 
@@ -359,11 +395,12 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
     /**
      * 获取所有标题行，范围列数和属性的map
-     * @param tClass AbsSheetJavaObj继承类
+     * @param tClass    AbsSheetJavaObj继承类
      * @param lastIndex 最后一个字段的索引位置
+     * @param layer 标题字段所在层数
      * @return ExcelTitleField列表
      */
-    private static <T extends AbsSheetJavaObj> List<TitleFieldInfo> computeTitleRow(Class<T> tClass, int lastIndex) {
+    private static <T extends AbsSheetJavaObj> List<TitleFieldInfo> computeTitleRow(Class<T> tClass, int lastIndex, int layer) {
         List<TitleFieldInfo> fieldList = new ArrayList<>();
         List<Field> declaredFields = CommonUtils.getAllFieldsIncludeSupper(tClass);
         int index = lastIndex;
@@ -378,7 +415,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
             // String类型字段处理
             if (field.getType().equals(String.class)) {
-                fieldList.add(new TitleFieldInfo(field, null, null, index));
+                fieldList.add(new TitleFieldInfo(field, null, null, index, layer));
                 index++;
             }
             // List类型字段处理
@@ -388,87 +425,26 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
                 // List<String>类型
                 if (String.class.equals(actualTypeArgument)) {
-                    fieldList.add(new TitleFieldInfo(field, null, String.class, index));
+                    fieldList.add(new TitleFieldInfo(field, null, String.class, index, layer));
                     index++;
                 }
                 // List<? extends AbsSheetJavaObj>类型
                 else if (AbsSheetJavaObj.class.isAssignableFrom(actualTypeArgument)) {
-                    List<TitleFieldInfo> subFields = computeTitleRow((Class<? extends AbsSheetJavaObj>) actualTypeArgument, index);
-                    fieldList.add(new TitleFieldInfo(field, subFields, actualTypeArgument, index));
+                    List<TitleFieldInfo> subFields = computeTitleRow((Class<? extends AbsSheetJavaObj>) actualTypeArgument, index, 0);
+                    fieldList.add(new TitleFieldInfo(field, subFields, actualTypeArgument, index, layer + 1));
                     int columnCount = columnCount(subFields);
                     index += columnCount;
                 }
             }
             // AbsSheetJavaObj类型字段处理
             else if (AbsSheetJavaObj.class.isAssignableFrom(field.getType())) {
-                List<TitleFieldInfo> excelTitleFields = computeTitleRow((Class<? extends AbsSheetJavaObj>) field.getType(), index);
-                fieldList.add(new TitleFieldInfo(field, excelTitleFields, field.getType(), index));
+                List<TitleFieldInfo> excelTitleFields = computeTitleRow((Class<? extends AbsSheetJavaObj>) field.getType(), index, 0);
+                fieldList.add(new TitleFieldInfo(field, excelTitleFields, field.getType(), index, layer + 1));
                 int columnCount = columnCount(excelTitleFields);
                 index += columnCount;
             }
         }
         return fieldList;
-    }
-
-    /**
-     * 获取一个AbsSheetJavaObj中所有字段
-     * @param tClass AbsSheetJavaObj继承类
-     * @param startIndex 起始列索引
-     * @param <T> 泛型类型
-     * @return ExcelTitleField列表，记录反射字段信息及其所在列范围
-     */
-    private <T> List<TitleFieldInfo> getAllFieldInAbsSheetJavaObj(Class<T> tClass, int startIndex) {
-        final List<TitleFieldInfo> allField = new ArrayList<>(); // Excel模板中所有标题列对应的字段
-
-        // 验证传入的类是否为AbsSheetJavaObj的子类
-        if (!AbsSheetJavaObj.class.isAssignableFrom(tClass)) {
-            return allField;
-        }
-
-        // 获取类及其父类的所有字段
-        for (Field field : CommonUtils.getAllFieldsIncludeSupper(tClass)) {
-            field.setAccessible(true);
-            TitleField excelTitle = field.getDeclaredAnnotation(TitleField.class);
-
-            // 只处理带有ExcelTitle注解的字段
-            if (excelTitle == null) {
-                continue;
-            }
-
-            // 处理String类型字段
-            if (field.getType().equals(String.class)) {
-                allField.add(new TitleFieldInfo(field, null, null, startIndex));
-                startIndex++;
-            }
-            // 处理AbsSheetJavaObj类型字段（嵌套对象）
-            else if (AbsSheetJavaObj.class.isAssignableFrom(field.getType())) {
-                // 递归读取第二层AbsSheetJavaObj的属性
-                Class<?> subType = field.getType();
-                List<TitleFieldInfo> propertyFields = getAllFieldInAbsSheetJavaObj(subType, startIndex);
-                allField.add(new TitleFieldInfo(field, propertyFields, field.getType(), startIndex));
-                int range = excelTitleFieldColTookCompute(propertyFields);
-                startIndex += range;
-            }
-            // 处理List类型字段
-            else if (Collection.class.isAssignableFrom(field.getType())) {
-                Class elementTypeInList = CommonUtils.getFirstGenericTypeOfField(field);
-
-                // List<String>类型
-                if (String.class.equals(elementTypeInList)) {
-                    allField.add(new TitleFieldInfo(field, null, String.class, startIndex));
-                    startIndex++;
-                }
-                // List<AbsSheetJavaObj>类型
-                else if (AbsSheetJavaObj.class.isAssignableFrom(elementTypeInList)) {
-                    List<TitleFieldInfo> propertyFields = getAllFieldInAbsSheetJavaObj(elementTypeInList, startIndex);
-                    allField.add(new TitleFieldInfo(field, propertyFields, elementTypeInList, startIndex));
-                    int range = excelTitleFieldColTookCompute(propertyFields);
-                    startIndex += range;
-                }
-            }
-        }
-
-        return allField;
     }
 
     /**
@@ -507,7 +483,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
         // 处理合并单元格区域
         for (CellRangeAddress cellAddresses : Optional.ofNullable(mergedRegions).orElse(new ArrayList<>())) {
-            // 只处理列合并情况，以第一列作为标识
+            // 只处理列合并情况，以列作为标识
             int col = cellAddresses.getFirstColumn();
             mergesColumnRanges.computeIfAbsent(col, k -> new ArrayList<>()).add(cellAddresses);
         }
@@ -521,10 +497,12 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         });
 
         // 获取主字段（String类型）
-        TitleFieldInfo leaderExcelTitleField = this.titleFieldInfos.stream()
-                .filter(excelTitleField -> excelTitleField.getField().getType().equals(String.class))
-                .findFirst()
-                .orElseThrow(() -> new RuntimeException("未找到String类型的主字段"));
+        TitleFieldInfo leaderExcelTitleField = findLeaderField(this.titleFieldInfos);
+        if (leaderExcelTitleField == null) {
+            throw new RuntimeException("未找到String类型的主字段");
+        }
+
+        List<CellRangeAddress> leaderCellRangeRows = mergesColumnRanges.get(leaderExcelTitleField.getStartCol());
 
         List<SheetObj> dataList = new ArrayList<>();
         int index = 0;
@@ -535,9 +513,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
             CellRangeAddress oneObjRangeAddress = null;
 
             // 检查当前行是否有合并单元格
-            for (CellRangeAddress cellAddresses : Optional.ofNullable(
-                    mergesColumnRanges.get(leaderExcelTitleField.getStartCol())
-            ).orElse(new ArrayList<>())) {
+            for (CellRangeAddress cellAddresses : Optional.ofNullable(leaderCellRangeRows).orElse(new ArrayList<>())) {
                 if (cellAddresses.isInRange(index + startRow, leaderExcelTitleField.getStartCol())) {
                     oneObjRangeAddress = cellAddresses;
                     break;
@@ -573,6 +549,31 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         }
 
         return dataList;
+    }
+
+    //存在合并单元格的表格，找到合并单元最大的单位，也就是按顺序找到的第一个string类型字段
+    private static TitleFieldInfo findLeaderField(List<TitleFieldInfo> titleFieldInfos){
+        TitleFieldInfo leaderExcelTitleField = titleFieldInfos.stream()
+                .filter(excelTitleField -> excelTitleField.getField().getType().equals(String.class))
+                .findFirst()
+                .orElse(null);
+
+        if (leaderExcelTitleField != null){
+            return leaderExcelTitleField;
+        }
+
+        // null代表可能在下一层,递归查找
+        for (TitleFieldInfo excelTitleField : titleFieldInfos) {
+            if (CollectionUtils.isEmpty(excelTitleField.getSubTitleFieldInfos())) {
+                continue;
+            }
+            leaderExcelTitleField = findLeaderField(excelTitleField.getSubTitleFieldInfos());
+            if (leaderExcelTitleField != null) {
+                break;
+            }
+        }
+
+        return leaderExcelTitleField;
     }
 
     /**
@@ -700,21 +701,20 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
      */
     private <T extends AbsSheetJavaObj> void addData2Sheet(Sheet sheet, List<T> dataList, List<TitleFieldInfo> fieldList) {
         List<CellRangeAddress> mergeRangeAddress = new ArrayList<>();
-        int startRowIndex = sheet.getLastRowNum() + 1;
+        int startRowIndex = sheet.getLastRowNum();
         Row row = sheet.createRow(startRowIndex + 1);
         for (T data : dataList) {
             // 将数据写入行
             List<CellRangeAddress> oneObjMergeRangeAddrs = addData2Row(sheet, row, data, fieldList);
-            mergeRangeAddress.addAll(oneObjMergeRangeAddrs);
-            // 计算下一行的位置
             if (CollectionUtils.isNotEmpty(oneObjMergeRangeAddrs)) {
+                mergeRangeAddress.addAll(oneObjMergeRangeAddrs);
                 List<CellRangeAddress> sortedList = mergeRangeAddress.stream()
                         .sorted(Comparator.comparingInt(CellRangeAddress::getLastRow))
                         .collect(Collectors.toList());
                 CellRangeAddress maxRange = sortedList.get(sortedList.size() - 1);
-                startRowIndex = maxRange.getLastRow() + 1;
+                row = createRowIfNotExist(sheet, maxRange.getLastRow() + 1);
             } else {
-                startRowIndex++;
+                row = createRowIfNotExist(sheet, row.getRowNum() + 1);
             }
         }
 
@@ -743,11 +743,7 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
 
         List<CellRangeAddress> cellRangeAddresses = new ArrayList<>();
 
-        // 过滤不同类型的字段
-        List<TitleFieldInfo> stringFields = fieldList.stream()
-                .filter(f -> String.class.equals(f.getField().getType()))
-                .collect(Collectors.toList());
-
+        // 不同类型的字段
         List<TitleFieldInfo> excelTitleListFields = fieldList.stream()
                 .filter(f -> Collection.class.isAssignableFrom(f.getField().getType()) &&
                         AbsSheetJavaObj.class.isAssignableFrom(f.getSubFieldType()))
@@ -762,8 +758,24 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
                 .filter(f -> AbsSheetJavaObj.class.isAssignableFrom(f.getField().getType()))
                 .collect(Collectors.toList());
 
+        List<TitleFieldInfo> originStringFields = fieldList.stream()
+                .filter(f -> String.class.equals(f.getField().getType()))
+                .collect(Collectors.toList());
+        //可能需要合并的string类型列
+        //可能需要合并的string类型列
+        List<TitleFieldInfo> mergedStringFields = new ArrayList<>(originStringFields);
+        //标题下一层的string类型也要算在内
+        for (TitleFieldInfo excelTitleField : excelTitleFields) {
+            for (TitleFieldInfo subTitleFieldInfo : excelTitleField.getSubTitleFieldInfos()) {
+                Field field = subTitleFieldInfo.getField();
+                if (String.class.equals(field.getType())) {
+                    mergedStringFields.add(subTitleFieldInfo);
+                }
+            }
+        }
+
         // 处理String类型字段
-        for (TitleFieldInfo excelTitleField : stringFields) {
+        for (TitleFieldInfo excelTitleField : originStringFields) {
             Field field = excelTitleField.getField();
             TitleField excelTitle = field.getDeclaredAnnotation(TitleField.class);
 
@@ -781,24 +793,24 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
         // 处理List<AbsSheetJavaObj>类型字段
         for (TitleFieldInfo listField : excelTitleListFields) {
             Field field = listField.getField();
-            List<AbsSheetJavaObj> AbsSheetJavaObjs = null;
+            List<AbsSheetJavaObj> absSheetJavaObjs = null;
 
             try {
-                AbsSheetJavaObjs = (List<AbsSheetJavaObj>) field.get(data);
+                absSheetJavaObjs = (List<AbsSheetJavaObj>) field.get(data);
             } catch (IllegalAccessException e) {
                 throw new RuntimeException(e);
             }
 
             Row curRow = row;
-            if (CollectionUtils.isEmpty(AbsSheetJavaObjs)) {
+            if (CollectionUtils.isEmpty(absSheetJavaObjs)) {
                 continue;
             }
 
-            for (AbsSheetJavaObj AbsSheetJavaObj : AbsSheetJavaObjs) {
+            for (AbsSheetJavaObj absSheetJavaObj : absSheetJavaObjs) {
                 List<CellRangeAddress> subRangeAddresses = addData2Row(
                         sheet,
                         curRow,
-                        AbsSheetJavaObj,
+                        absSheetJavaObj,
                         listField.getSubTitleFieldInfos()
                 );
 
@@ -817,11 +829,9 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
             }
 
             // 创建纵向合并单元格
-            if (CollectionUtils.isEmpty(excelTitleListFields) &&
-                    CollectionUtils.isEmpty(stringFields) &&
-                    curRow.getRowNum() - row.getRowNum() > 1) {
+            if (CollectionUtils.isNotEmpty(mergedStringFields) && curRow.getRowNum() - row.getRowNum() > 1) {
 
-                for (TitleFieldInfo stringField : stringFields) {
+                for (TitleFieldInfo stringField : mergedStringFields) {
                     cellRangeAddresses.add(new CellRangeAddress(
                             row.getRowNum(),
                             curRow.getRowNum() - 1,
@@ -856,6 +866,48 @@ public final class TitledListSheetPageHandler<SheetObj extends AbsSheetJavaObj> 
             );
 
             cellRangeAddresses.addAll(subRangeAddresses);
+        }
+
+        //处理List<String>类型字段
+        for (TitleFieldInfo stringListField : stringListFields) {
+            Field field = stringListField.getField();
+            TitleField titleField = field.getDeclaredAnnotation(TitleField.class);
+            List<String> dataStringList = null;
+            try {
+                dataStringList = (List<String>) field.get(data);
+            } catch (IllegalAccessException e) {
+                throw new RuntimeException(e);
+            }
+
+            if (CollectionUtils.isEmpty(dataStringList)){
+                continue;
+            }
+
+            if (titleField.listValuesInSingleCell()){
+                String splitter = titleField.listValuesInSingleCellSplitter();
+                String writeVal = String.join(splitter, dataStringList);
+                Cell cell = row.createCell(stringListField.getStartCol());
+                sheet.setColumnWidth(stringListField.getStartCol(), titleField.colWidth() * 256);
+                cell.setCellValue(writeVal);
+            }else {
+                Row curRow = row;
+                for (String dataString : dataStringList) {
+                    Cell cell = curRow.createCell(stringListField.getStartCol());
+                    sheet.setColumnWidth(stringListField.getStartCol(), titleField.colWidth() * 256);
+                    cell.setCellValue(dataString);
+                    curRow = createRowIfNotExist(sheet, curRow.getRowNum() + 1);
+                }
+                if (CollectionUtils.isNotEmpty(mergedStringFields) && curRow.getRowNum() -  row.getRowNum() > 1) {
+                    for (TitleFieldInfo stringField : mergedStringFields) {
+                        cellRangeAddresses.add(new CellRangeAddress(
+                                row.getRowNum(),
+                                curRow.getRowNum() - 1,
+                                stringField.getStartCol(),
+                                stringField.getStartCol()
+                        ));
+                    }
+                }
+            }
         }
 
         return cellRangeAddresses;

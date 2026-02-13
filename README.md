@@ -1,34 +1,221 @@
 # SimpleWorkbookMapper
 
-一个基于Apache POI的简单Excel工作簿映射工具，支持将Excel文件自动映射为Java对象，以及将Java对象导出为Excel文件。
+一个基于Apache POI的Excel-JavaBean映射工具，支持将Excel文件自动映射为Java对象，以及将Java对象导出为Excel文件。
 
-## 🌟 特性
+## 🌟 示例
 
-- **注解驱动**：通过简单的注解配置即可实现Excel与Java对象的双向映射
-- **类型安全**：支持泛型，提供编译时类型检查
-- **灵活配置**：支持自定义列宽、数据验证、合并单元格等
-- **嵌套对象支持**：支持复杂对象结构的映射
-- **数据验证**：自动生成下拉列表等数据验证规则
-- **合并单元格处理**：智能识别和处理Excel中的合并单元格
-
-## 📦 依赖
-
-```xml
-<dependencies>
-    <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi</artifactId>
-        <version>3.16</version>
-    </dependency>
-    <dependency>
-        <groupId>org.apache.poi</groupId>
-        <artifactId>poi-ooxml</artifactId>
-        <version>3.16</version>
-    </dependency>
-</dependencies>
+### 1. 读取
+表格示例
+![img_1.png](img_1.png)
+读取到的数据
+```json
+{
+  "complexSheet": {
+    "data": [
+      {
+        "complexBaseInfo": {
+          "department": "1000.0",
+          "jobNumber": "1101.0",
+          "name": "李1",
+          "sex": "男"
+        },
+        "complexSalaries": [
+          {
+            "allowance": "1000.0",
+            "base": "5001.0",
+            "bonus": "3001.0",
+            "date": "45910.0",
+            "performance": "3000.0",
+            "total": "13002.0"
+          },
+          {
+            "allowance": "1000.0",
+            "base": "5000.0",
+            "bonus": "3002.0",
+            "date": "45941.0",
+            "performance": "3000.0",
+            "total": "12002.0"
+          },
+          {
+            "allowance": "1000.0",
+            "base": "5001.0",
+            "bonus": "3003.0",
+            "date": "45973.0",
+            "performance": "3000.0",
+            "total": "12004.0"
+          }
+        ],
+        "rowId": "0"
+      },
+      {
+        "complexBaseInfo": {
+          "department": "1002.0",
+          "jobNumber": "1102.0",
+          "name": "李2",
+          "sex": "女"
+        },
+        "complexSalaries": [
+          {
+            "allowance": "1000.0",
+            "base": "5002.0",
+            "bonus": "3004.0",
+            "date": "45913.0",
+            "performance": "3000.0",
+            "total": "13008.0"
+          }
+        ],
+        "rowId": "1"
+      },
+      {
+        "complexBaseInfo": {
+          "department": "1003.0",
+          "jobNumber": "1103.0",
+          "name": "李3",
+          "sex": "女"
+        },
+        "complexSalaries": [
+          {
+            "allowance": "1000.0",
+            "base": "5006.0",
+            "bonus": "3005.0",
+            "date": "45914.0",
+            "performance": "3000.0",
+            "total": "13014.0"
+          },
+          {
+            "allowance": "1000.0",
+            "base": "5001.0",
+            "bonus": "3006.0",
+            "date": "45945.0",
+            "performance": "3000.0",
+            "total": "12007.0"
+          }
+        ],
+        "rowId": "2"
+      }
+    ],
+    "titleRowCount": 2
+  }
+}
 ```
 
-## 🚀 快速开始
+### 2.写入
+数据示例
+```json
+{
+  "complexSheet": {
+    "list": [
+      {
+        "complexBaseInfo": {
+          "jobNumber": "EMP0002",
+          "name": "王五",
+          "sex": "女",
+          "department": "技术部"
+        },
+        "complexSalaries": [
+          {
+            "base": "10902",
+            "performance": "4519",
+            "allowance": "958",
+            "bonus": "2631",
+            "total": "19010",
+            "date": "2024-07"
+          },
+          {
+            "base": "5471",
+            "performance": "4156",
+            "allowance": "1571",
+            "bonus": "127",
+            "total": "11325",
+            "date": "2024-08"
+          },
+          {
+            "base": "11588",
+            "performance": "3278",
+            "allowance": "1323",
+            "bonus": "800",
+            "total": "16989",
+            "date": "2024-06"
+          }
+        ]
+      },
+      {
+        "complexBaseInfo": {
+          "jobNumber": "EMP0003",
+          "name": "孙七",
+          "sex": "女",
+          "department": "市场部"
+        },
+        "complexSalaries": [
+          {
+            "base": "7109",
+            "performance": "1771",
+            "allowance": "1011",
+            "bonus": "4169",
+            "total": "14060",
+            "date": "2024-07"
+          },
+          {
+            "base": "8332",
+            "performance": "3235",
+            "allowance": "1815",
+            "bonus": "1279",
+            "total": "14661",
+            "date": "2024-04"
+          }
+        ]
+      },
+      {
+        "complexBaseInfo": {
+          "jobNumber": "EMP0004",
+          "name": "吴九",
+          "sex": "男",
+          "department": "销售部"
+        },
+        "complexSalaries": [
+          {
+            "base": "8502",
+            "performance": "3326",
+            "allowance": "770",
+            "bonus": "1424",
+            "total": "14022",
+            "date": "2024-11"
+          },
+          {
+            "base": "5742",
+            "performance": "5104",
+            "allowance": "1211",
+            "bonus": "2806",
+            "total": "14863",
+            "date": "2024-01"
+          },
+          {
+            "base": "8435",
+            "performance": "5711",
+            "allowance": "513",
+            "bonus": "4178",
+            "total": "18837",
+            "date": "2024-06"
+          },
+          {
+            "base": "12161",
+            "performance": "2404",
+            "allowance": "830",
+            "bonus": "607",
+            "total": "16002",
+            "date": "2024-11"
+          }
+        ]
+      }
+    ],
+    "titleRowCount": 0
+  }
+}
+```
+生成表格
+![img_2.png](img_2.png)
+
+## 📖 使用说明
 
 ### 1. 定义数据模型
 
@@ -58,15 +245,12 @@ public class SimpleSheet extends AbsSheetJavaObj {
 创建继承自 `AbsWorkbookJavaObj` 的工作簿类：
 
 ```java
-import com.simpleWorkbook.annotations.SheetField;
-import com.simpleWorkbook.model.AbsWorkbookJavaObj;
-import com.simpleWorkbook.model.titledList.TitledListAbsSheetPageObj;
 
-public class SimpleWorkbookJava extends AbsWorkbookJavaObj {
-    
+public class SimpleWorkbook extends AbsWorkbookJavaObj {
+
     @SheetField("用户信息")
-    private TitledListAbsSheetPageObj<SimpleSheet> sheetPage;
-    
+    private TitledListSheetPageObj<SimpleSheet> sheetPage;
+
     // getter和setter方法...
 }
 ```
@@ -74,34 +258,24 @@ public class SimpleWorkbookJava extends AbsWorkbookJavaObj {
 ### 3. 读取Excel文件
 
 ```java
-try {
-    SimpleWorkbookJava workbook = SimpleWorkbookMapper.readWorkbook(
-        SimpleWorkbookJava.class, 
-        "path/to/your/excel.xlsx"
-    );
-    
-    List<SimpleSheet> dataList = workbook.getSheetPage().getData();
-    // 处理数据...
-} catch (Exception e) {
-    e.printStackTrace();
-}
+SimpleWorkbook workbook = SimpleWorkbookMapper.readWorkbook(SimpleWorkbook.class, "path/to/your/excel.xlsx");
+
+List<SimpleSheet> dataList = workbook.getSheetPage().getData();
+// 处理数据...
 ```
 
 ### 4. 写入Excel文件
 
 ```java
-// 准备数据
-List<SimpleSheet> dataList = new ArrayList<>();
-// ... 添加数据
-
-TitledListAbsSheetPageObj<SimpleSheet> sheetPage = new TitledListAbsSheetPageObj<>();
-sheetPage.setData(dataList);
-
-SimpleWorkbookJava workbook = new SimpleWorkbookJava();
-workbook.setSheetPage(sheetPage);
+//创建workbook
+SimpleWorkbook workbook = new SimpleWorkbook();
 
 // 导出Excel
 Workbook excelWorkbook = SimpleWorkbookMapper.writeWorkbook(workbook);
+
+// 准备sheetPage，添加数据
+TitledListAbsSheetPageObj<SimpleSheet> sheetPage = new TitledListAbsSheetPageObj<>();
+
 // 保存到文件...
 ```
 
@@ -144,53 +318,11 @@ private String fieldName;
 - `listValuesInSingleCell`: 是否在单个单元格中存储列表值
 - `listValuesInSingleCellSplitter`: 列表值分隔符（默认","）
 
-## 🔧 核心组件
-
-### 主要类结构
-
-```
-com.simpleWorkbook
-├── SimpleWorkbookMapper          # 主入口类
-├── annotations
-│   ├── SheetField               # Sheet页面注解
-│   └── TitleField               # 标题字段注解
-├── model
-│   ├── AbsWorkbookJavaObj       # 工作簿抽象基类
-│   ├── AbsSheetJavaObj          # Sheet数据抽象基类
-│   ├── AbsSheetPageObj          # Sheet页面抽象基类
-│   └── titledList
-│       ├── TitledListAbsSheetPageObj  # 带标题的Sheet页面实现
-│       └── TitleFieldInfo       # 标题字段信息
-├── handler
-│   ├── SheetPageHandler         # Sheet处理器接口
-│   ├── SheetPageHandlerFactory  # 处理器工厂
-│   └── TitledListSheetPageHandler # 带标题的Sheet处理器实现
-├── utils
-│   └── CommonUtils              # 通用工具类
-└── exception
-    └── FileTypeNotSupportException # 文件类型不支持异常
-```
-
-### 处理流程
-
-1. **读取流程**：
-   - 解析注解配置
-   - 读取Excel数据
-   - 处理合并单元格
-   - 映射为Java对象
-
-2. **写入流程**：
-   - 创建标题行
-   - 设置列宽和样式
-   - 添加数据验证
-   - 写入数据
-
 ## ⚠️ 注意事项
 
 1. **文件格式**：目前仅支持 `.xlsx` 格式
 2. **Java版本**：需要Java 8或更高版本
-3. **内存使用**：处理大文件时注意内存消耗
-4. **线程安全**：各组件设计为线程安全
+
 
 ## 📋 支持的数据类型
 
@@ -199,57 +331,7 @@ com.simpleWorkbook
 - `List<? extends AbsSheetJavaObj>`：嵌套对象列表
 - `? extends AbsSheetJavaObj`：嵌套对象
 
-## 🔧 配置示例
-
-### Maven配置
-
-```xml
-<properties>
-    <maven.compiler.source>8</maven.compiler.source>
-    <maven.compiler.target>8</maven.compiler.target>
-    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
-</properties>
-```
-
-### 自定义Maven设置
-
-项目包含 `setting.xml` 配置文件，可配置阿里云镜像等：
-
-```xml
-<mirrors>
-    <mirror>
-        <id>alimaven</id>
-        <name>aliyun maven</name>
-        <url>https://maven.aliyun.com/repository/public</url>
-        <mirrorOf>central</mirrorOf>
-    </mirror>
-</mirrors>
-```
-
-## 🐛 常见问题
-
-### Q: 为什么只能读取.xlsx文件？
-A: 当前版本基于Apache POI 3.16，主要针对.xlsx格式优化。如需支持.xls格式，可升级POI版本。
-
-### Q: 如何处理复杂的嵌套对象？
-A: 通过继承 `AbsSheetJavaObj` 并使用 `@TitleField` 注解，支持多层嵌套结构。
-
-### Q: 数据验证下拉列表有数量限制吗？
-A: 单个下拉列表最多支持50个选项，超过会自动创建隐藏sheet存储数据。
-
-## 📄 License
-
-本项目采用MIT许可证，详情请参见LICENSE文件。
-
 ## 🤝 贡献
 
 欢迎提交Issue和Pull Request来改进这个项目！
 
-## 📞 联系方式
-
-如有问题，请通过以下方式联系：
-- 提交GitHub Issue
-- 发送邮件至项目维护者
-
----
-*SimpleWorkbookMapper - 让Excel操作变得简单！*
